@@ -1,11 +1,6 @@
 .model tiny
 .186
 
-COLOR = 04eh
-SYM = 0b1h
-X = 2
-Y = 10
-
 .code
 org 100h
 locals @@
@@ -83,9 +78,18 @@ GetArgs     proc
             pop dx
 
             push ax
+            push ax
             xor cx, cx
+
+            pop ax
+            push si
+            cmp al, 0h
+            jne @@MyStyle
+            add si, 0Ah
+@@MyStyle:
             xor ax, ax
-            call StrLen
+            call StrHnd
+            pop si
             mov cl, al                            ; lenght of the message is width of the frame
             mov dl, ah                            ; height of the message is height of the frame
             add dl, 3
@@ -107,27 +111,26 @@ GetArgs     proc
 
 TwoDigitD   proc
 
-            lodsb               ; bytes in AX
-            mov ah, al
-            lodsb
+            lodsw               ; bytes in AX
+            xchg al, ah
 
-            cmp al, 41h
+            cmp al, 'A'
             jae @@AL
 
-            sub al, 30h         ; changing al into number
+            sub al, '0'         ; changing al into number
             jmp @@ALDONE
 
-@@AL:       sub al, 41h
+@@AL:       sub al, 'A'         ; 'A'
             add al, 0Ah
 
 
-@@ALDONE:   cmp ah, 41h         ; changing ah into number
+@@ALDONE:   cmp ah, 'A'         ; changing ah into number
             jae @@AH
 
             sub ah, 30h
             jmp @@AHDONE
 
-@@AH:       sub ah, 41h
+@@AH:       sub ah, 'A'
             add ah, 0Ah
 
 @@AHDONE:
@@ -155,27 +158,26 @@ TwoDigitD   proc
 
 TwoDigitH   proc
 
-            lodsb               ; bytes in AX
-            mov ah, al
-            lodsb
+            lodsw               ; bytes in AX
+            xchg al, ah
 
             cmp al, 41h
             jae @@AL
 
-            sub al, 30h         ; changing al into number
+            sub al, '0'         ; changing al into number
             jmp @@ALDONE
 
-@@AL:       sub al, 41h
+@@AL:       sub al, 'A'
             add al, 0Ah
 
 
-@@ALDONE:   cmp ah, 41h         ; changing ah into number
+@@ALDONE:   cmp ah, 'A'         ; changing ah into number
             jae @@AH
 
-            sub ah, 30h
+            sub ah, '0'
             jmp @@AHDONE
 
-@@AH:       sub ah, 41h
+@@AH:       sub ah, 'A'
             add ah, 0Ah
 
 @@AHDONE:
@@ -220,7 +222,6 @@ DrawFrame   proc
             pop bx
             add si, ax
             pop ax
-            jmp @@StlDone
 
 @@StlDone:
             lodsb                       ; top left corner in al
@@ -309,15 +310,8 @@ DrawLine    proc
 
             sub cx, 2
 
-@@Width:    cmp cx, 0h              ; draws middle symbols
-            je @@Done
+            rep stosw               ; draws middle symbols
 
-            stosw
-            dec cx
-
-            jmp @@Width
-
-@@Done:
             mov al, dl              ; draws left symbol
             stosw
 
@@ -346,7 +340,7 @@ ClrScr		proc
 ;           DI = coordinates of the start of line
 ; Exit:		none
 ; Expects:	ES = 0b800h
-; Destroys: AL, DH, DL
+; Destroys: AL, DH, DL, CX
 ;------------------------------------------------
 
 PrtMsg      proc
@@ -364,7 +358,19 @@ PrtMsg      proc
             push di
             jmp @@Next
 
-@@NoEnter:  stosw
+@@NoEnter:
+            cmp al, '~'
+            jne @@NoChgClr
+            push ax
+            call TwoDigitH
+            mov ah, al
+            pop cx
+            mov cl, al
+            jmp @@Next
+
+
+@@NoChgClr:
+            stosw
 
 		    jmp @@Next
 
@@ -373,7 +379,7 @@ PrtMsg      proc
             endp
 
 ;------------------------------------------------
-; Counting strings lenght
+; Handling string parameters: len and height
 ;------------------------------------------------
 ; Entry:    SI = start message ptr
 ; Exit:		AL = len of the string
@@ -382,13 +388,19 @@ PrtMsg      proc
 ; Destroys: CL
 ;------------------------------------------------
 
-StrLen      proc
+StrHnd      proc
 
             push si
 
 @@Next:     cmp byte ptr [si], 0dh           ; check for the end of the string
             je @@Done
 
+            cmp byte ptr [si], '~'
+            jne @@NoChgClr
+            add si, 3
+            jmp @@Next
+
+@@NoChgClr:
             cmp byte ptr [si], '#'
             jne @@NoEnter
             inc ah                           ; one more line in text
@@ -418,6 +430,8 @@ StrLen      proc
 
 style1      db 0dah, 0c4h, 0bfh, 0b3h, ' ', 0b3h, 0c0h, 0c4h, 0d9h
 
-style2      db 03h, 03h, 03h, 03h, ' ', 03h, 03h, 03h, 03h
+style2      db 003h, 003h, 003h, 003h, ' ', 003h, 003h, 003h, 003h
+
+style3      db 0c9h, 0cdh, 0bbh, 0bah, ' ', 0bah, 0c8h, 0cdh, 0bch
 
 end start
