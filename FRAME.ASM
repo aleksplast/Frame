@@ -69,14 +69,6 @@ GetArgs     proc
             add ax, bx
             mov di, ax
 
-            call TwoDigitD                        ; width of the frame
-            mov cx, ax
-            inc si
-
-            call TwoDigitD                        ; height of the frame
-            mov dx, ax
-            inc si
-
             push dx
             call TwoDigitH                        ; color of the frame
             mov ah, al
@@ -89,6 +81,17 @@ GetArgs     proc
             pop dx
             add ax, dx
             pop dx
+
+            push ax
+            xor cx, cx
+            xor ax, ax
+            call StrLen
+            mov cl, al                            ; lenght of the message is width of the frame
+            mov dl, ah                            ; height of the message is height of the frame
+            add dl, 3
+            add cx, 2
+            pop ax
+
             ret
             endp
 
@@ -270,27 +273,7 @@ DrawFrame   proc
             pop dx                      ; height in dx
             pop cx                      ; width in cx
 
-            mov ax, dx                  ; centralize by height
-            xor dx, dx
-            mov bx, 2h
-            div bx
-            mov bx, 160d
-            mul bx
-            add di, ax
-
-            mov ax, cx                  ; centralize by width
-            xor dx, dx
-            mov bx, 2h
-            div bx
-            add di, ax
-
-            push di
-            shr di, 1                   ; check for odd ptr
-            pop di
-            jc @@Odd
-            jmp @@Even
-@@Odd:      inc di
-@@Even:
+            add di, 162d                ; start of the text
 
             pop ax
             cmp al, 0h
@@ -363,20 +346,71 @@ ClrScr		proc
 ;           DI = coordinates of the start of line
 ; Exit:		none
 ; Expects:	ES = 0b800h
-; Destroys: AL, DH, DL, DI
+; Destroys: AL, DH, DL
 ;------------------------------------------------
 
 PrtMsg      proc
 
-@@Next:		cmp [si], 0dh				; check for the end of the string
+            push di
+@@Next:		cmp byte ptr [si], 0dh				; check for the end of the string
 		    je @@Done
 
 		    lodsb
-            stosw
+
+            cmp al, '#'
+            jne @@NoEnter
+            pop di
+            add di, 160d
+            push di
+            jmp @@Next
+
+@@NoEnter:  stosw
 
 		    jmp @@Next
 
-@@Done:
+@@Done:     pop di
+            ret
+            endp
+
+;------------------------------------------------
+; Counting strings lenght
+;------------------------------------------------
+; Entry:    SI = start message ptr
+; Exit:		AL = len of the string
+;           AH = height of the frame
+; Expects:	AX = 0
+; Destroys: CL
+;------------------------------------------------
+
+StrLen      proc
+
+            push si
+
+@@Next:     cmp byte ptr [si], 0dh           ; check for the end of the string
+            je @@Done
+
+            cmp byte ptr [si], '#'
+            jne @@NoEnter
+            inc ah                           ; one more line in text
+            cmp cl, al
+            jbe @@NoChange
+            mov al, cl
+@@NoChange:
+            inc si
+            xor cl, cl
+            jmp @@Next
+@@NoEnter:
+            inc cl
+            inc si                           ; next char
+
+            jmp @@Next
+
+@@Done:     cmp cl, al
+            jbe @@Lastwrd
+            mov al, cl
+@@LastWrd:
+
+            pop si
             ret
             endp
 
